@@ -184,11 +184,29 @@
   </div>
 
   <div class="panel active" id="panel-kunlik">
+    <!-- Bugungi -->
+    <div style="font-family:var(--font-head);font-size:13px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;text-transform:uppercase;">📅 Bugungi</div>
     <div class="summary-grid">
       <div class="sum-card income"><div class="sum-label">Bugungi Tushum</div><div class="sum-value" id="todayIncome">0 so'm</div></div>
       <div class="sum-card expense"><div class="sum-label">Bugungi Chiqim</div><div class="sum-value" id="todayExpense">0 so'm</div></div>
       <div class="sum-card profit"><div class="sum-label">Bugungi Foyda</div><div class="sum-value" id="todayProfit">0 so'm</div></div>
       <div class="sum-card count"><div class="sum-label">Jami Yozuvlar</div><div class="sum-value" id="todayCount">0</div></div>
+    </div>
+    <!-- Oylik umumiy -->
+    <div style="font-family:var(--font-head);font-size:13px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;margin-top:10px;text-transform:uppercase;">📅 Joriy Oy (<span id="curMonthName"></span>)</div>
+    <div class="summary-grid">
+      <div class="sum-card income"><div class="sum-label">Oylik Tushum</div><div class="sum-value" id="monthIncome">0 so'm</div></div>
+      <div class="sum-card expense"><div class="sum-label">Oylik Chiqim</div><div class="sum-value" id="monthExpense">0 so'm</div></div>
+      <div class="sum-card profit"><div class="sum-label">Oylik Foyda</div><div class="sum-value" id="monthProfit">0 so'm</div></div>
+      <div class="sum-card count"><div class="sum-label">Oylik Yozuvlar</div><div class="sum-value" id="monthCount">0</div></div>
+    </div>
+    <!-- Umumiy jami -->
+    <div style="font-family:var(--font-head);font-size:13px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;margin-top:10px;text-transform:uppercase;">📊 Umumiy Jami (barcha vaqt)</div>
+    <div class="summary-grid">
+      <div class="sum-card income"><div class="sum-label">Jami Tushum</div><div class="sum-value" id="totalIncome">0 so'm</div></div>
+      <div class="sum-card expense"><div class="sum-label">Jami Chiqim</div><div class="sum-value" id="totalExpense">0 so'm</div></div>
+      <div class="sum-card profit"><div class="sum-label">Jami Sof Foyda</div><div class="sum-value" id="totalProfit">0 so'm</div></div>
+      <div class="sum-card count" style="border-top:3px solid var(--accent)"><div class="sum-label">Oy Soni</div><div class="sum-value" style="color:var(--accent)" id="totalMonths">0</div></div>
     </div>
     <div class="form-section">
       <div class="form-title">➕ Yangi Yozuv Qo'shish</div>
@@ -250,7 +268,7 @@
           <div class="report-stat"><div class="report-stat-label">Eng Yaxshi Oy</div><div class="report-stat-val" id="yBestMonth" style="font-size:16px">—</div></div>
         </div>
         <div class="bar-chart" id="yearlyChart"></div>
-        <div class="table-wrap" style="margin-top:20px"><table class="monthly-table"><thead><tr><th>Oy</th><th>Tushum</th><th>Chiqim</th><th>Foyda</th></tr></thead><tbody id="yearlyTableBody"></tbody></table></div>
+        <div class="table-wrap" style="margin-top:20px"><table class="monthly-table"><thead><tr><th>Oy</th><th>Tushum</th><th>Chiqim</th><th>Oylik Foyda</th><th>Yig'ma Foyda</th></tr></thead><tbody id="yearlyTableBody"></tbody></table></div>
       </div>
     </div>
   </div>
@@ -493,7 +511,18 @@ window.renderYearly = function() {
   document.getElementById('yBestMonth').textContent=inc>0?MONTHS[bm]:'—';
   const mx=Math.max(...months.map(m=>Math.max(m.inc,m.exp)),1);
   document.getElementById('yearlyChart').innerHTML=months.map((m,i)=>`<div class="bar-group"><div class="bar-inner"><div class="bar inc" style="height:${Math.round((m.inc/mx)*100)}px" title="${fmt(m.inc)}"></div><div class="bar exp" style="height:${Math.round((m.exp/mx)*100)}px" title="${fmt(m.exp)}"></div></div><div class="bar-label">${MONTHS[i].slice(0,3)}</div></div>`).join('');
-  document.getElementById('yearlyTableBody').innerHTML=months.map((m,i)=>{const p=m.inc-m.exp;return`<tr><td>${MONTHS[i]}</td><td class="amount-income">${fmt(m.inc)}</td><td class="amount-expense">${fmt(m.exp)}</td><td style="color:${p>=0?'var(--green)':'var(--red)'}">${fmt(p)}</td></tr>`;}).join('');
+  let cumulative = 0;
+  document.getElementById('yearlyTableBody').innerHTML=months.map((m,i)=>{
+    const p=m.inc-m.exp;
+    cumulative+=p;
+    return`<tr>
+      <td>${MONTHS[i]}</td>
+      <td class="amount-income">${fmt(m.inc)}</td>
+      <td class="amount-expense">${fmt(m.exp)}</td>
+      <td style="color:${p>=0?'var(--green)':'var(--red)'}">${fmt(p)}</td>
+      <td style="color:${cumulative>=0?'var(--accent)':'var(--red)'};font-weight:bold">${fmt(cumulative)}</td>
+    </tr>`;
+  }).join('');
 }
 
 function downloadCSV(data, filename) {
