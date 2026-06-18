@@ -423,6 +423,8 @@ window.deleteEntry = async function(id) {
 }
 
 function renderTodaySummary() {
+  const MONTHS_UZ = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentyabr','Oktyabr','Noyabr','Dekabr'];
+  // Bugungi
   const tod = today.toISOString().split('T')[0];
   const te = entries.filter(e => e.date === tod);
   const inc = te.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
@@ -433,6 +435,34 @@ function renderTodaySummary() {
   const el = document.getElementById('todayProfit');
   el.textContent = fmt(p); el.style.color = p>=0?'var(--green)':'var(--red)';
   document.getElementById('todayCount').textContent = entries.length;
+
+  // Joriy oylik
+  const curYear = today.getFullYear();
+  const curMonth = today.getMonth();
+  document.getElementById('curMonthName').textContent = MONTHS_UZ[curMonth] + ' ' + curYear;
+  const me = entries.filter(e => {
+    const d = new Date(e.date);
+    return d.getFullYear()===curYear && d.getMonth()===curMonth;
+  });
+  const mInc = me.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
+  const mExp = me.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
+  const mP = mInc - mExp;
+  document.getElementById('monthIncome').textContent = fmt(mInc);
+  document.getElementById('monthExpense').textContent = fmt(mExp);
+  const mPEl = document.getElementById('monthProfit');
+  mPEl.textContent = fmt(mP); mPEl.style.color = mP>=0?'var(--green)':'var(--red)';
+  document.getElementById('monthCount').textContent = me.length;
+
+  // Umumiy jami
+  const tInc = entries.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
+  const tExp = entries.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
+  const tP = tInc - tExp;
+  document.getElementById('totalIncome').textContent = fmt(tInc);
+  document.getElementById('totalExpense').textContent = fmt(tExp);
+  const tPEl = document.getElementById('totalProfit');
+  tPEl.textContent = fmt(tP); tPEl.style.color = tP>=0?'var(--green)':'var(--red)';
+  const months = new Set(entries.map(e=>e.date.slice(0,7)));
+  document.getElementById('totalMonths').textContent = months.size + ' oy';
 }
 
 window.renderTable = function() {
