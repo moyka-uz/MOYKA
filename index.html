@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AutoMoyka — Moliyaviy Hisobot</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg: #0d0f14; --surface: #151820; --card: #1c2030; --border: #2a3045;
@@ -174,6 +175,7 @@
     <div class="user-badge">👤 <span id="userEmail"></span></div>
     <div class="date-badge" id="currentDate"></div>
     <button id="importBtn" style="padding:6px 16px;background:transparent;border:1px solid #ffd32a;color:#ffd32a;border-radius:4px;font-family:monospace;font-size:12px;cursor:pointer;margin-left:8px;" >📦 MA'LUMOT YUKLASH</button>
+    <button id="excelExportBtn" style="padding:6px 16px;background:transparent;border:1px solid #00e676;color:#00e676;border-radius:4px;font-family:monospace;font-size:12px;cursor:pointer;margin-left:8px;">📊 EXCEL HISOBOT</button>
   <button class="logout-btn" onclick="doLogout()">CHIQISH</button>
   </header>
 
@@ -565,11 +567,96 @@ window.exportCSV=function(){const fd=document.getElementById('filterDate').value
 window.exportMonthlyCSV=function(){const y=parseInt(document.getElementById('monthlyYear').value),m=parseInt(document.getElementById('monthlyMonth').value);downloadCSV(entries.filter(e=>{const d=new Date(e.date);return d.getFullYear()===y&&d.getMonth()===m;}),`moyka_${MONTHS[m]}_${y}.csv`);}
 window.exportYearlyCSV=function(){const y=parseInt(document.getElementById('yearlyYear').value);downloadCSV(entries.filter(e=>new Date(e.date).getFullYear()===y),`moyka_${y}_yillik.csv`);}
 
+function exportExcelReport() {
+  if (!entries.length) { alert("Ma'lumot yo'q!"); return; }
+  const wb = XLSX.utils.book_new();
+
+  // 1) Barcha yozuvlar
+  const allData = [...entries].sort((a,b)=>a.date.localeCompare(b.date)).map(e => ({
+    'Sana': e.date,
+    'Tur': e.type === 'income' ? 'Tushum' : 'Chiqim',
+    'Kategoriya': e.category,
+    'Summa': e.amount,
+    'Izoh': e.note || ''
+  }));
+  const ws1 = XLSX.utils.json_to_sheet(allData);
+  ws1['!autofilter'] = { ref: ws1['!ref'] };
+  ws1['!cols'] = [{wch:12},{wch:10},{wch:22},{wch:14},{wch:32}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Barcha Yozuvlar');
+
+  // 2) Oylik hisobot
+  const monthMap = {};
+  entries.forEach(e => {
+    const key = e.date.slice(0,7);
+    if (!monthMap[key]) monthMap[key] = {inc:0, exp:0, count:0};
+    if (e.type==='income') monthMap[key].inc += e.amount; else monthMap[key].exp += e.amount;
+    monthMap[key].count++;
+  });
+  const monthData = Object.keys(monthMap).sort().map(k => {
+    const [y,m] = k.split('-');
+    return {
+      'Oy': MONTHS[parseInt(m)-1] + ' ' + y,
+      'Tushum': monthMap[k].inc,
+      'Chiqim': monthMap[k].exp,
+      'Sof Foyda': monthMap[k].inc - monthMap[k].exp,
+      'Yozuvlar': monthMap[k].count
+    };
+  });
+  const ws2 = XLSX.utils.json_to_sheet(monthData);
+  ws2['!autofilter'] = { ref: ws2['!ref'] };
+  ws2['!cols'] = [{wch:18},{wch:14},{wch:14},{wch:14},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Oylik Hisobot');
+
+  // 3) Yillik hisobot
+  const yearMap = {};
+  entries.forEach(e => {
+    const y = e.date.slice(0,4);
+    if (!yearMap[y]) yearMap[y] = {inc:0, exp:0, count:0};
+    if (e.type==='income') yearMap[y].inc += e.amount; else yearMap[y].exp += e.amount;
+    yearMap[y].count++;
+  });
+  const yearData = Object.keys(yearMap).sort().map(y => ({
+    'Yil': y,
+    'Tushum': yearMap[y].inc,
+    'Chiqim': yearMap[y].exp,
+    'Sof Foyda': yearMap[y].inc - yearMap[y].exp,
+    'Yozuvlar': yearMap[y].count
+  }));
+  const ws3 = XLSX.utils.json_to_sheet(yearData);
+  ws3['!autofilter'] = { ref: ws3['!ref'] };
+  ws3['!cols'] = [{wch:10},{wch:14},{wch:14},{wch:14},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Yillik Hisobot');
+
+  // 4) Kategoriya bo'yicha
+  const catMap = {};
+  entries.forEach(e => {
+    if (!catMap[e.category]) catMap[e.category] = {inc:0, exp:0, count:0};
+    if (e.type==='income') catMap[e.category].inc += e.amount; else catMap[e.category].exp += e.amount;
+    catMap[e.category].count++;
+  });
+  const catData = Object.keys(catMap).map(c => ({
+    'Kategoriya': c,
+    'Tushum': catMap[c].inc,
+    'Chiqim': catMap[c].exp,
+    'Yozuvlar Soni': catMap[c].count
+  }));
+  const ws4 = XLSX.utils.json_to_sheet(catData);
+  ws4['!autofilter'] = { ref: ws4['!ref'] };
+  ws4['!cols'] = [{wch:22},{wch:14},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws4, 'Kategoriya Boyicha');
+
+  const today_str = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `moyka_hisobot_${today_str}.xlsx`);
+}
+
 
   // Import button
   document.getElementById('importBtn').addEventListener('click', () => {
     document.getElementById('importModal').style.display = 'flex';
   });
+
+  document.getElementById('excelExportBtn').addEventListener('click', exportExcelReport);
+
 
   document.getElementById('doImportBtn').addEventListener('click', async () => {
     const btn = document.getElementById('doImportBtn');
