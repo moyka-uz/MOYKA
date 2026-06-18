@@ -13,8 +13,15 @@
     --text: #e8eaf0; --muted: #6b7494;
     --font-head: 'Oswald', sans-serif; --font-mono: 'IBM Plex Mono', monospace;
   }
+  [data-theme="light"] {
+    --bg: #eef1f6; --surface: #ffffff; --card: #ffffff; --border: #d8dee8;
+    --accent: #0089b3; --green: #0a9c4a; --red: #d6304a; --yellow: #b8860b;
+    --text: #1c2030; --muted: #5a6275;
+  }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--bg); color:var(--text); font-family:var(--font-mono); min-height:100vh; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font-mono); min-height:100vh; transition:background 0.3s,color 0.3s; }
+  .theme-toggle { padding:6px 14px; background:transparent; border:1px solid var(--border); color:var(--text); border-radius:4px; font-size:14px; cursor:pointer; margin-left:8px; }
+  .theme-toggle:hover { border-color:var(--accent); }
 
   /* LOGIN */
   #loginScreen {
@@ -176,6 +183,7 @@
     <div class="date-badge" id="currentDate"></div>
     <button id="importBtn" style="padding:6px 16px;background:transparent;border:1px solid #ffd32a;color:#ffd32a;border-radius:4px;font-family:monospace;font-size:12px;cursor:pointer;margin-left:8px;" >📦 MA'LUMOT YUKLASH</button>
     <button id="excelExportBtn" style="padding:6px 16px;background:transparent;border:1px solid #00e676;color:#00e676;border-radius:4px;font-family:monospace;font-size:12px;cursor:pointer;margin-left:8px;">📊 EXCEL HISOBOT</button>
+    <button id="themeToggleBtn" class="theme-toggle">🌙</button>
   <button class="logout-btn" onclick="doLogout()">CHIQISH</button>
   </header>
 
@@ -211,21 +219,35 @@
       <div class="sum-card count" style="border-top:3px solid var(--accent)"><div class="sum-label">Oy Soni</div><div class="sum-value" style="color:var(--accent)" id="totalMonths">0</div></div>
     </div>
     <div class="form-section">
-      <div class="form-title">➕ Yangi Yozuv Qo'shish</div>
+      <div class="form-title" id="formTitle">➕ Yangi Yozuv Qo'shish</div>
       <div class="form-row">
         <div class="form-group"><label>Sana</label><input type="date" id="entryDate"></div>
         <div class="form-group"><label>Tur</label><select id="entryType"><option value="income">💰 Tushum</option><option value="expense">💸 Chiqim</option></select></div>
         <div class="form-group"><label>Kategoriya</label><select id="entryCategory"><option>Moyka xizmati</option><option>Polirovka</option><option>Salon tozalash</option><option>Disk yuvish</option><option>Kimyoviy tozalash</option><option>Ish haqi</option><option>Kommunal</option><option>Ximiya va materiallar</option><option>Asbob-uskunalar</option><option>Ijara</option><option>Reklama</option><option>Boshqa</option></select></div>
         <div class="form-group"><label>Summa (so'm)</label><input type="number" id="entryAmount" placeholder="50000" min="0"></div>
         <div class="form-group"><label>Izoh</label><input type="text" id="entryNote" placeholder="Ixtiyoriy..."></div>
-        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary" onclick="addEntry()">SAQLASH</button></div>
+        <div class="form-group"><label>&nbsp;</label>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary" id="saveBtn" onclick="addEntry()">SAQLASH</button>
+            <button class="btn" id="cancelEditBtn" style="display:none;background:var(--surface);color:var(--muted);border:1px solid var(--border);" onclick="cancelEdit()">✕ Bekor</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="filter-row">
-      <span class="filter-label">Filtr:</span>
-      <input type="date" id="filterDate" onchange="renderTable()">
+      <span class="filter-label">Dan:</span>
+      <input type="date" id="filterDateFrom" onchange="renderTable()">
+      <span class="filter-label">Gacha:</span>
+      <input type="date" id="filterDateTo" onchange="renderTable()">
       <select id="filterType" onchange="renderTable()"><option value="">Hammasi</option><option value="income">Tushum</option><option value="expense">Chiqim</option></select>
+      <button class="btn" style="background:var(--surface);color:var(--muted);border:1px solid var(--border);" onclick="clearDateFilter()">✕ Tozalash</button>
       <button class="btn btn-export" onclick="exportCSV()">⬇ CSV</button>
+    </div>
+    <div class="summary-grid" id="rangeSummaryGrid" style="margin-bottom:16px;">
+      <div class="sum-card income"><div class="sum-label">Davr Tushumi</div><div class="sum-value" id="rangeIncome">0 so'm</div></div>
+      <div class="sum-card expense"><div class="sum-label">Davr Chiqimi</div><div class="sum-value" id="rangeExpense">0 so'm</div></div>
+      <div class="sum-card profit"><div class="sum-label">Davr Foydasi</div><div class="sum-value" id="rangeProfit">0 so'm</div></div>
+      <div class="sum-card count"><div class="sum-label">Kun / Yozuv</div><div class="sum-value" id="rangeCount">0</div></div>
     </div>
     <div class="table-wrap">
       <table>
@@ -233,6 +255,7 @@
         <tbody id="entryTableBody"><tr><td colspan="7"><div class="empty-state"><div class="icon">⏳</div>Yuklanmoqda...</div></td></tr></tbody>
       </table>
     </div>
+
   </div>
 
   <div class="panel" id="panel-oylik">
@@ -301,6 +324,7 @@ const IMPORTED_DATA = [{"id": 1, "date": "2025-04-01", "type": "income", "amount
 let entries = [];
 let firebaseKeys = {};
 let dataLoaded = false;
+let editingId = null;
 const today = new Date();
 
 // AUTH STATE
@@ -311,7 +335,8 @@ onAuthStateChanged(auth, (user) => {
     document.getElementById('userEmail').textContent = user.email;
     document.getElementById('currentDate').textContent = today.toLocaleDateString('uz-UZ', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
     document.getElementById('entryDate').value = today.toISOString().split('T')[0];
-    document.getElementById('filterDate').value = today.toISOString().split('T')[0];
+    document.getElementById('filterDateFrom').value = today.toISOString().split('T')[0];
+    document.getElementById('filterDateTo').value = today.toISOString().split('T')[0];
     startListening();
   } else {
     document.getElementById('loginScreen').style.display = 'flex';
@@ -413,7 +438,41 @@ window.addEntry = async function() {
   const note = document.getElementById('entryNote').value.trim();
   if (!date || !amount || amount <= 0) { alert("Sana va summani to'ldiring!"); return; }
   setSyncStatus('syncing');
-  await set(push(ref(db, 'entries')), { id: Date.now(), date, type, category, amount, note });
+  if (editingId) {
+    const key = firebaseKeys[editingId];
+    if (key) await set(ref(db, 'entries/' + key), { id: editingId, date, type, category, amount, note });
+    cancelEditUI();
+  } else {
+    await set(push(ref(db, 'entries')), { id: Date.now(), date, type, category, amount, note });
+  }
+  document.getElementById('entryAmount').value = '';
+  document.getElementById('entryNote').value = '';
+}
+
+window.editEntry = function(id) {
+  const entry = entries.find(e => e.id === id);
+  if (!entry) return;
+  document.getElementById('entryDate').value = entry.date;
+  document.getElementById('entryType').value = entry.type;
+  document.getElementById('entryCategory').value = entry.category;
+  document.getElementById('entryAmount').value = entry.amount;
+  document.getElementById('entryNote').value = entry.note || '';
+  editingId = id;
+  document.getElementById('formTitle').textContent = "✎ Yozuvni Tahrirlash";
+  document.getElementById('saveBtn').textContent = 'YANGILASH';
+  document.getElementById('cancelEditBtn').style.display = 'inline-block';
+  document.getElementById('entryDate').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function cancelEditUI() {
+  editingId = null;
+  document.getElementById('formTitle').textContent = "➕ Yangi Yozuv Qo'shish";
+  document.getElementById('saveBtn').textContent = 'SAQLASH';
+  document.getElementById('cancelEditBtn').style.display = 'none';
+}
+
+window.cancelEdit = function() {
+  cancelEditUI();
   document.getElementById('entryAmount').value = '';
   document.getElementById('entryNote').value = '';
 }
@@ -468,10 +527,31 @@ function renderTodaySummary() {
 }
 
 window.renderTable = function() {
-  const fd = document.getElementById('filterDate').value;
+  const fdFrom = document.getElementById('filterDateFrom').value;
+  const fdTo = document.getElementById('filterDateTo').value;
   const ft = document.getElementById('filterType').value;
   let f = entries;
-  if (fd) f = f.filter(e=>e.date===fd);
+  if (fdFrom) f = f.filter(e=>e.date>=fdFrom);
+  if (fdTo) f = f.filter(e=>e.date<=fdTo);
+
+  // Range summary (uses date range only, ignores type filter so both income & expense always shown)
+  let rangeBase = entries;
+  if (fdFrom) rangeBase = rangeBase.filter(e=>e.date>=fdFrom);
+  if (fdTo) rangeBase = rangeBase.filter(e=>e.date<=fdTo);
+  const rInc = rangeBase.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
+  const rExp = rangeBase.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
+  const rP = rInc - rExp;
+  document.getElementById('rangeIncome').textContent = fmt(rInc);
+  document.getElementById('rangeExpense').textContent = fmt(rExp);
+  const rPEl = document.getElementById('rangeProfit');
+  rPEl.textContent = fmt(rP); rPEl.style.color = rP>=0?'var(--green)':'var(--red)';
+  let dayCount = '—';
+  if (fdFrom && fdTo) {
+    const d1 = new Date(fdFrom), d2 = new Date(fdTo);
+    dayCount = Math.round((d2-d1)/86400000) + 1;
+  }
+  document.getElementById('rangeCount').textContent = (dayCount!=='—' ? dayCount + ' kun / ' : '') + rangeBase.length + ' yozuv';
+
   if (ft) f = f.filter(e=>e.type===ft);
   const tbody = document.getElementById('entryTableBody');
   if (!f.length) { tbody.innerHTML=`<tr><td colspan="7"><div class="empty-state"><div class="icon">🚗</div>Yozuvlar topilmadi</div></td></tr>`; return; }
@@ -480,8 +560,18 @@ window.renderTable = function() {
     <td><span class="badge badge-${e.type}">${e.type==='income'?'💰 Tushum':'💸 Chiqim'}</span></td>
     <td>${e.category}</td><td class="amount-${e.type}">${fmt(e.amount)}</td>
     <td style="color:var(--muted)">${e.note||'—'}</td>
-    <td><button class="btn btn-danger" onclick="deleteEntry(${e.id})">✕</button></td>
+    <td>
+      <button class="btn" style="background:var(--accent);color:#000;font-size:12px;padding:6px 10px;margin-right:4px;" onclick="editEntry(${e.id})">✎</button>
+      <button class="btn btn-danger" onclick="deleteEntry(${e.id})">✕</button>
+    </td>
   </tr>`).join('');
+}
+
+window.clearDateFilter = function() {
+  document.getElementById('filterDateFrom').value = '';
+  document.getElementById('filterDateTo').value = '';
+  document.getElementById('filterType').value = '';
+  renderTable();
 }
 
 function populateYears() {
@@ -563,7 +653,7 @@ function downloadCSV(data, filename) {
   const blob=new Blob(['\uFEFF'+'Sana,Tur,Kategoriya,Summa,Izoh\n'+rows],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
 }
-window.exportCSV=function(){const fd=document.getElementById('filterDate').value,ft=document.getElementById('filterType').value;let f=entries;if(fd)f=f.filter(e=>e.date===fd);if(ft)f=f.filter(e=>e.type===ft);downloadCSV(f,`moyka_${fd||'barchasi'}.csv`);}
+window.exportCSV=function(){const fdFrom=document.getElementById('filterDateFrom').value,fdTo=document.getElementById('filterDateTo').value,ft=document.getElementById('filterType').value;let f=entries;if(fdFrom)f=f.filter(e=>e.date>=fdFrom);if(fdTo)f=f.filter(e=>e.date<=fdTo);if(ft)f=f.filter(e=>e.type===ft);downloadCSV(f,`moyka_${fdFrom||'boshi'}_${fdTo||'oxiri'}.csv`);}
 window.exportMonthlyCSV=function(){const y=parseInt(document.getElementById('monthlyYear').value),m=parseInt(document.getElementById('monthlyMonth').value);downloadCSV(entries.filter(e=>{const d=new Date(e.date);return d.getFullYear()===y&&d.getMonth()===m;}),`moyka_${MONTHS[m]}_${y}.csv`);}
 window.exportYearlyCSV=function(){const y=parseInt(document.getElementById('yearlyYear').value);downloadCSV(entries.filter(e=>new Date(e.date).getFullYear()===y),`moyka_${y}_yillik.csv`);}
 
@@ -701,6 +791,19 @@ function exportExcelReport() {
       btn.disabled = false;
       btn.textContent = 'QAYTA URINISH';
     }
+  });
+
+  // Theme toggle
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    document.getElementById('themeToggleBtn').textContent = t === 'light' ? '🌙' : '☀️';
+  }
+  const savedTheme = localStorage.getItem('moyka_theme') || 'dark';
+  applyTheme(savedTheme);
+  document.getElementById('themeToggleBtn').addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    applyTheme(cur);
+    localStorage.setItem('moyka_theme', cur);
   });
 
   // DOM Event Listeners (module scope fix)
